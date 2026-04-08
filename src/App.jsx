@@ -14,6 +14,7 @@ import LoanCharts from './components/LoanCharts'
 import LoanForm from './components/LoanForm'
 import LoanTable from './components/LoanTable'
 import SyncSetup from './components/SyncSetup'
+import NepalTeraiCalculator from './components/NepalTeraiCalculator'
 import { aggregateSummary, getSampleLoans } from './utils/calculations'
 import {
   loadFirebaseConfig,
@@ -289,6 +290,8 @@ export default function App() {
             />
           </>
         )}
+
+        {activeTab === 'calculator' && <NepalTeraiCalculator />}
       </main>
 
       <footer className="mt-12 py-6 border-t border-slate-200 text-center text-xs text-slate-400">
