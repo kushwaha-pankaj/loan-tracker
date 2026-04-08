@@ -1,6 +1,10 @@
 import { useState, useEffect } from 'react'
 import { X, Save, AlertCircle, AlertTriangle, Info, ChevronDown, ChevronUp } from 'lucide-react'
 import { v4 as uuidv4 } from 'uuid'
+import {
+  BS_MONTHS, BS_MONTHS_NP, BS_YEAR_RANGE,
+  bsToIso, isoToBs, bsMonthDays,
+} from '../utils/nepaliDate'
 
 // ── Real Nepal interest rate data (NRB + field research 2024/25) ──────────────
 const LENDER_TYPES = [
@@ -209,6 +213,155 @@ function LenderHint({ lenderType }) {
   )
 }
 
+// ── Bilingual Date Picker (AD / BS) ──────────────────────────────────────────
+function DatePicker({ value, onChange, error }) {
+  const [mode, setMode] = useState('bs') // 'bs' | 'ad'
+
+  // Derive BS state from ISO value
+  const bsCurrent = value ? isoToBs(value) : null
+  const todayIso = new Date().toISOString().split('T')[0]
+
+  // BS picker state
+  const defaultBs = bsCurrent || isoToBs(todayIso)
+  const [bsYear,  setBsYear]  = useState(defaultBs?.year  || 2082)
+  const [bsMonth, setBsMonth] = useState(defaultBs?.month || 1)
+  const [bsDay,   setBsDay]   = useState(defaultBs?.day   || 1)
+
+  // Whenever BS dropdowns change, emit ISO
+  function emitBs(y, m, d) {
+    const maxDay = bsMonthDays(y, m)
+    const safeDay = Math.min(d, maxDay)
+    if (safeDay !== d) setBsDay(safeDay)
+    onChange(bsToIso(y, m, safeDay))
+  }
+
+  function handleBsYear(y)  { setBsYear(y);  emitBs(y, bsMonth, bsDay) }
+  function handleBsMonth(m) { setBsMonth(m); emitBs(bsYear, m, bsDay) }
+  function handleBsDay(d)   { setBsDay(d);   emitBs(bsYear, bsMonth, d) }
+
+  // Days available for selected BS year+month
+  const daysInMonth = bsMonthDays(bsYear, bsMonth)
+
+  // Cross-display: show equivalent in the other calendar
+  const adEquivalent = value
+    ? new Date(value + 'T00:00:00').toLocaleDateString('en-IN', {
+        day: '2-digit', month: 'short', year: 'numeric',
+      })
+    : null
+  const bsEquivalent = bsCurrent
+    ? `${bsCurrent.day} ${BS_MONTHS[bsCurrent.month - 1]} ${bsCurrent.year} BS`
+    : null
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1.5">
+        <label className="label mb-0">Loan Date *</label>
+        {/* Toggle */}
+        <div className="flex rounded-lg border border-slate-200 overflow-hidden text-xs font-semibold">
+          <button
+            type="button"
+            onClick={() => setMode('bs')}
+            className={`px-3 py-1 transition-colors ${
+              mode === 'bs'
+                ? 'bg-nepal-red text-white'
+                : 'bg-white text-slate-500 hover:bg-slate-50'
+            }`}
+          >
+            BS (नेपाली)
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode('ad')}
+            className={`px-3 py-1 transition-colors ${
+              mode === 'ad'
+                ? 'bg-nepal-red text-white'
+                : 'bg-white text-slate-500 hover:bg-slate-50'
+            }`}
+          >
+            AD (English)
+          </button>
+        </div>
+      </div>
+
+      {mode === 'bs' ? (
+        <div className="space-y-2">
+          {/* Three BS dropdowns */}
+          <div className="flex gap-2">
+            {/* Year */}
+            <select
+              className="input-field flex-1"
+              value={bsYear}
+              onChange={(e) => handleBsYear(Number(e.target.value))}
+            >
+              {[...BS_YEAR_RANGE].reverse().map((y) => (
+                <option key={y} value={y}>{y} BS</option>
+              ))}
+            </select>
+
+            {/* Month */}
+            <select
+              className="input-field flex-1"
+              value={bsMonth}
+              onChange={(e) => handleBsMonth(Number(e.target.value))}
+            >
+              {BS_MONTHS.map((name, i) => (
+                <option key={i + 1} value={i + 1}>
+                  {name} ({BS_MONTHS_NP[i]})
+                </option>
+              ))}
+            </select>
+
+            {/* Day */}
+            <select
+              className="input-field w-20"
+              value={bsDay}
+              onChange={(e) => handleBsDay(Number(e.target.value))}
+            >
+              {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((d) => (
+                <option key={d} value={d}>{d}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Show AD equivalent */}
+          {adEquivalent && (
+            <p className="text-xs text-slate-500 flex items-center gap-1">
+              <span className="text-slate-400">≡</span>
+              {adEquivalent} (AD)
+            </p>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <input
+            type="date"
+            className="input-field"
+            value={value || ''}
+            max={todayIso}
+            onChange={(e) => {
+              const iso = e.target.value
+              onChange(iso)
+              if (iso) {
+                const bs = isoToBs(iso)
+                if (bs) { setBsYear(bs.year); setBsMonth(bs.month); setBsDay(bs.day) }
+              }
+            }}
+          />
+          {/* Show BS equivalent */}
+          {bsEquivalent && (
+            <p className="text-xs text-slate-500 flex items-center gap-1">
+              <span className="text-slate-400">≡</span>
+              {bsEquivalent}
+            </p>
+          )}
+        </div>
+      )}
+
+      {error && <p className="text-red-500 text-xs mt-1">{error}</p>}
+    </div>
+  )
+}
+
 export default function LoanForm({ loan, onSave, onClose }) {
   const [form, setForm] = useState(EMPTY_FORM)
   const [errors, setErrors] = useState({})
@@ -341,15 +494,11 @@ export default function LoanForm({ loan, onSave, onClose }) {
               {errors.borrowerName && <p className="text-red-500 text-xs mt-1">{errors.borrowerName}</p>}
             </div>
             <div>
-              <label className="label">Loan Date *</label>
-              <input
-                type="date"
-                className="input-field"
+              <DatePicker
                 value={form.loanDate}
-                max={new Date().toISOString().split('T')[0]}
-                onChange={(e) => set('loanDate', e.target.value)}
+                onChange={(iso) => set('loanDate', iso)}
+                error={errors.loanDate}
               />
-              {errors.loanDate && <p className="text-red-500 text-xs mt-1">{errors.loanDate}</p>}
             </div>
           </div>
 

@@ -11,6 +11,7 @@ import {
   Info,
 } from 'lucide-react'
 import { calculateLoanMetrics, formatNPR, riskLevel } from '../utils/calculations'
+import { formatDateShort, formatDateBilingual } from '../utils/nepaliDate'
 
 const TYPE_BADGE = {
   person: 'badge-person',
@@ -39,12 +40,11 @@ const RISK_ICON = {
 }
 
 function formatDate(dateStr) {
-  if (!dateStr) return '—'
-  return new Date(dateStr).toLocaleDateString('en-IN', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  })
+  return formatDateShort(dateStr)
+}
+
+function formatDateFull(dateStr) {
+  return formatDateBilingual(dateStr)
 }
 
 function RateDisplay({ loan }) {
@@ -93,7 +93,7 @@ function LoanRow({ loan, onEdit, onDelete, onToggle }) {
         {/* Borrower */}
         <td className="px-4 py-3">
           <div className="text-sm text-slate-700">{loan.borrowerName}</div>
-          <div className="text-xs text-slate-400">{formatDate(loan.loanDate)}</div>
+          <div className="text-xs text-slate-400" title={loan.loanDate}>{formatDate(loan.loanDate)}</div>
         </td>
 
         {/* Age */}
@@ -172,6 +172,10 @@ function LoanRow({ loan, onEdit, onDelete, onToggle }) {
         <tr className="bg-slate-50 border-b border-slate-100">
           <td colSpan={9} className="px-6 py-4">
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+              <div>
+                <span className="text-slate-500 text-xs font-medium uppercase">Loan Date (BS)</span>
+                <p className="font-semibold text-slate-800">{formatDateFull(loan.loanDate)}</p>
+              </div>
               <div>
                 <span className="text-slate-500 text-xs font-medium uppercase">Annual Rate</span>
                 <p className="font-semibold text-slate-800">{metrics.annualRate.toFixed(2)}% p.a.</p>
