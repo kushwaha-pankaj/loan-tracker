@@ -1,13 +1,89 @@
 import { useState, useEffect } from 'react'
-import { X, Save, AlertCircle } from 'lucide-react'
+import { X, Save, AlertCircle, AlertTriangle, Info, ChevronDown, ChevronUp } from 'lucide-react'
 import { v4 as uuidv4 } from 'uuid'
 
+// ── Real Nepal interest rate data (NRB + field research 2024/25) ──────────────
 const LENDER_TYPES = [
-  { value: 'person', label: '👤 Individual Person' },
-  { value: 'cooperative', label: '🤝 Cooperative (Sahakari)' },
-  { value: 'bank', label: '🏦 Bank' },
-  { value: 'microfinance', label: '💳 Microfinance Institution' },
+  {
+    value: 'person',
+    label: '👤 व्यक्ति (Individual / Sahukar)',
+    desc: 'Local moneylender, neighbor, or relative',
+    typicalRate: { min: 24, max: 60, unit: 'annual' },
+    commonQuote: 'Usually quoted as 2–5% per month (24–60% per year)',
+    interestType: 'simple',
+    warning: null,
+    nrbCap: null,
+  },
+  {
+    value: 'cooperative',
+    label: '🤝 सहकारी (Cooperative / Sahakari)',
+    desc: 'Community savings & credit cooperative',
+    typicalRate: { min: 12, max: 15, unit: 'annual' },
+    commonQuote: 'NRB cap: 14.75% per year · Most charge 12–15% p.a.',
+    interestType: 'simple',
+    warning: null,
+    nrbCap: 14.75,
+  },
+  {
+    value: 'bank',
+    label: '🏦 बैंक (Commercial / Development Bank)',
+    desc: 'Nepal Bank, Nabil, Everest, Sunrise, etc.',
+    typicalRate: { min: 9, max: 14, unit: 'annual' },
+    commonQuote: 'Base rate ~6–8% + spread · Effective: 9–14% p.a. reducing balance',
+    interestType: 'compound',
+    warning: null,
+    nrbCap: null,
+  },
+  {
+    value: 'microfinance',
+    label: '💳 लघुवित्त (Microfinance / Laghubitta)',
+    desc: 'Nirdhan, RMDC, Chhimek, First Microfinance, etc.',
+    typicalRate: { min: 13, max: 15, unit: 'annual' },
+    commonQuote: 'NRB cap: 15% per year · Service fee max 1.3% extra',
+    interestType: 'simple',
+    warning: null,
+    nrbCap: 15,
+  },
 ]
+
+// Rate warning thresholds based on NRB data and Terai practice
+function getRateWarning(lenderType, annualRate) {
+  if (!annualRate || isNaN(annualRate)) return null
+
+  const type = LENDER_TYPES.find((t) => t.value === lenderType)
+
+  if (lenderType === 'cooperative' && annualRate > 14.75) {
+    return {
+      level: 'error',
+      msg: `Above NRB cap of 14.75% p.a. for cooperatives — verify with your sahakari`,
+    }
+  }
+  if (lenderType === 'microfinance' && annualRate > 15) {
+    return {
+      level: 'error',
+      msg: `Above NRB cap of 15% p.a. for microfinance (Laghubitta) institutions`,
+    }
+  }
+  if (lenderType === 'bank' && annualRate > 18) {
+    return {
+      level: 'warn',
+      msg: `Banks in Nepal typically charge 9–14% p.a. — double-check this rate`,
+    }
+  }
+  if (annualRate > 60) {
+    return {
+      level: 'error',
+      msg: `${annualRate}% p.a. is extremely high. "Meter Byaj" (meter interest) is illegal under Nepal law. Confirm this is correct.`,
+    }
+  }
+  if (annualRate > 36 && lenderType === 'person') {
+    return {
+      level: 'warn',
+      msg: `${annualRate}% p.a. (${(annualRate / 12).toFixed(1)}%/month) — high but common with informal sahukars in Terai. Meter byaj over 5%/month is illegal.`,
+    }
+  }
+  return null
+}
 
 const EMPTY_FORM = {
   lenderName: '',
@@ -23,6 +99,116 @@ const EMPTY_FORM = {
   isActive: true,
 }
 
+// ── Rate reference table shown inside form ────────────────────────────────────
+function RateReference({ activeType }) {
+  const [open, setOpen] = useState(false)
+  const rows = [
+    {
+      type: 'person',
+      label: 'Sahukar / व्यक्ति',
+      rate: '2–5% / month',
+      annual: '24–60% p.a.',
+      method: 'Simple (flat)',
+      cap: 'No NRB cap',
+      capColor: 'text-red-500',
+    },
+    {
+      type: 'cooperative',
+      label: 'Sahakari / सहकारी',
+      rate: '1–1.25% / month',
+      annual: '12–15% p.a.',
+      method: 'Simple',
+      cap: 'Max 14.75% NRB',
+      capColor: 'text-green-600',
+    },
+    {
+      type: 'microfinance',
+      label: 'Laghubitta / लघुवित्त',
+      rate: '~1.1–1.25% / month',
+      annual: '13–15% p.a.',
+      method: 'Flat / simple',
+      cap: 'Max 15% NRB',
+      capColor: 'text-green-600',
+    },
+    {
+      type: 'bank',
+      label: 'Bank / बैंक',
+      rate: '0.75–1.2% / month',
+      annual: '9–14% p.a.',
+      method: 'Reducing balance',
+      cap: 'Base rate + spread',
+      capColor: 'text-blue-600',
+    },
+  ]
+
+  return (
+    <div className="border border-slate-200 rounded-xl overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors text-left"
+      >
+        <span className="text-xs font-semibold text-slate-600 flex items-center gap-2">
+          <Info className="w-3.5 h-3.5 text-blue-500" />
+          Nepal / Terai Interest Rate Reference (NRB 2024/25)
+        </span>
+        {open ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+      </button>
+
+      {open && (
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="bg-slate-100 text-slate-500 uppercase tracking-wide">
+                <th className="px-3 py-2 text-left font-semibold">Source</th>
+                <th className="px-3 py-2 text-left font-semibold">Typical Rate</th>
+                <th className="px-3 py-2 text-left font-semibold">Per Year</th>
+                <th className="px-3 py-2 text-left font-semibold hidden sm:table-cell">Method</th>
+                <th className="px-3 py-2 text-left font-semibold">NRB Limit</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr
+                  key={row.type}
+                  className={`border-t border-slate-100 ${activeType === row.type ? 'bg-blue-50' : ''}`}
+                >
+                  <td className="px-3 py-2 font-medium text-slate-700">
+                    {activeType === row.type && <span className="mr-1">▶</span>}
+                    {row.label}
+                  </td>
+                  <td className="px-3 py-2 text-slate-600">{row.rate}</td>
+                  <td className="px-3 py-2 font-semibold text-slate-800">{row.annual}</td>
+                  <td className="px-3 py-2 text-slate-500 hidden sm:table-cell">{row.method}</td>
+                  <td className={`px-3 py-2 font-semibold ${row.capColor}`}>{row.cap}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div className="px-3 py-2 bg-amber-50 border-t border-amber-100">
+            <p className="text-xs text-amber-800">
+              <strong>⚠️ Meter Byaj (मिटर ब्याज):</strong> Compound interest charged daily/weekly by informal lenders is illegal under Nepal law. Rates above 5%/month are considered exploitative. If you are paying this, you may have legal recourse.
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Lender type info card ─────────────────────────────────────────────────────
+function LenderHint({ lenderType }) {
+  const info = LENDER_TYPES.find((t) => t.value === lenderType)
+  if (!info) return null
+  return (
+    <div className="bg-blue-50 border border-blue-100 rounded-lg px-3 py-2 text-xs text-blue-800 mt-2">
+      <span className="font-semibold">{info.desc}</span>
+      <span className="mx-1.5 text-blue-300">·</span>
+      {info.commonQuote}
+    </div>
+  )
+}
+
 export default function LoanForm({ loan, onSave, onClose }) {
   const [form, setForm] = useState(EMPTY_FORM)
   const [errors, setErrors] = useState({})
@@ -30,14 +216,22 @@ export default function LoanForm({ loan, onSave, onClose }) {
   const isEdit = !!loan
 
   useEffect(() => {
-    if (loan) {
-      setForm({ ...EMPTY_FORM, ...loan })
-    }
+    if (loan) setForm({ ...EMPTY_FORM, ...loan })
   }, [loan])
 
   function set(key, val) {
     setForm((prev) => ({ ...prev, [key]: val }))
     if (errors[key]) setErrors((prev) => ({ ...prev, [key]: '' }))
+  }
+
+  // Auto-set sensible interest type when lender type changes
+  function setLenderType(val) {
+    const info = LENDER_TYPES.find((t) => t.value === val)
+    setForm((prev) => ({
+      ...prev,
+      lenderType: val,
+      interestType: info?.interestType || 'simple',
+    }))
   }
 
   function validate() {
@@ -56,10 +250,7 @@ export default function LoanForm({ loan, onSave, onClose }) {
   function handleSubmit(e) {
     e.preventDefault()
     const errs = validate()
-    if (Object.keys(errs).length) {
-      setErrors(errs)
-      return
-    }
+    if (Object.keys(errs).length) { setErrors(errs); return }
     onSave({
       ...form,
       id: loan?.id || uuidv4(),
@@ -69,17 +260,21 @@ export default function LoanForm({ loan, onSave, onClose }) {
     onClose()
   }
 
-  // Preview calculation
-  const previewInterest = () => {
-    const p = parseFloat(form.principal) || 0
-    const r = parseFloat(form.interestRate) || 0
-    const annual = form.rateType === 'monthly' ? r * 12 : r
-    return `${annual.toFixed(1)}% per annum · ${(annual / 12).toFixed(2)}% per month`
-  }
+  // Compute annual rate for warnings and preview
+  const rawRate = parseFloat(form.interestRate) || 0
+  const annualRate = form.rateType === 'monthly' ? rawRate * 12 : rawRate
+  const monthlyRate = annualRate / 12
+  const rateWarning = form.interestRate ? getRateWarning(form.lenderType, annualRate) : null
+
+  const previewText =
+    rawRate > 0
+      ? `${annualRate.toFixed(2)}% per annum  ·  ${monthlyRate.toFixed(3)}% per month`
+      : null
 
   return (
     <div className="modal-overlay fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="modal-content bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-slate-100 sticky top-0 bg-white rounded-t-2xl z-10">
           <div>
@@ -96,8 +291,12 @@ export default function LoanForm({ loan, onSave, onClose }) {
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
+
+          {/* Rate reference (collapsible) */}
+          <RateReference activeType={form.lenderType} />
+
           {/* Lender section */}
-          <div className="bg-blue-50 rounded-xl p-4 space-y-4">
+          <div className="bg-blue-50 rounded-xl p-4 space-y-3">
             <h3 className="text-sm font-bold text-blue-800 uppercase tracking-wide">Lender Details</h3>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -105,7 +304,7 @@ export default function LoanForm({ loan, onSave, onClose }) {
                 <label className="label">Lender Name *</label>
                 <input
                   className="input-field"
-                  placeholder="e.g. Ramesh Sharma, NBL"
+                  placeholder="e.g. Ram Sahukar, Shree Sahakari"
                   value={form.lenderName}
                   onChange={(e) => set('lenderName', e.target.value)}
                 />
@@ -116,7 +315,7 @@ export default function LoanForm({ loan, onSave, onClose }) {
                 <select
                   className="input-field"
                   value={form.lenderType}
-                  onChange={(e) => set('lenderType', e.target.value)}
+                  onChange={(e) => setLenderType(e.target.value)}
                 >
                   {LENDER_TYPES.map((t) => (
                     <option key={t.value} value={t.value}>{t.label}</option>
@@ -124,6 +323,9 @@ export default function LoanForm({ loan, onSave, onClose }) {
                 </select>
               </div>
             </div>
+
+            {/* Contextual hint for selected lender type */}
+            <LenderHint lenderType={form.lenderType} />
           </div>
 
           {/* Borrower + Date */}
@@ -156,6 +358,7 @@ export default function LoanForm({ loan, onSave, onClose }) {
             <h3 className="text-sm font-bold text-red-800 uppercase tracking-wide">Loan Amount & Interest</h3>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Principal */}
               <div>
                 <label className="label">Principal Amount (NPR) *</label>
                 <div className="relative">
@@ -171,13 +374,14 @@ export default function LoanForm({ loan, onSave, onClose }) {
                 {errors.principal && <p className="text-red-500 text-xs mt-1">{errors.principal}</p>}
               </div>
 
+              {/* Interest rate */}
               <div>
                 <label className="label">Interest Rate *</label>
                 <div className="flex gap-2">
                   <div className="relative flex-1">
                     <input
                       className="input-field pr-7"
-                      placeholder="e.g. 18"
+                      placeholder={form.rateType === 'monthly' ? 'e.g. 2' : 'e.g. 18'}
                       value={form.interestRate}
                       onChange={(e) => set('interestRate', e.target.value)}
                       inputMode="decimal"
@@ -190,50 +394,88 @@ export default function LoanForm({ loan, onSave, onClose }) {
                     onChange={(e) => set('rateType', e.target.value)}
                     title="Rate period"
                   >
-                    <option value="annual">/ Year</option>
                     <option value="monthly">/ Month</option>
+                    <option value="annual">/ Year</option>
                   </select>
                 </div>
-                {errors.interestRate && <p className="text-red-500 text-xs mt-1">{errors.interestRate}</p>}
-                {form.interestRate && !errors.interestRate && (
-                  <p className="text-xs text-slate-500 mt-1">{previewInterest()}</p>
+
+                {errors.interestRate && (
+                  <p className="text-red-500 text-xs mt-1">{errors.interestRate}</p>
+                )}
+
+                {/* Rate preview */}
+                {previewText && !errors.interestRate && (
+                  <p className="text-xs text-slate-500 mt-1 font-medium">{previewText}</p>
+                )}
+
+                {/* Rate warning */}
+                {rateWarning && (
+                  <div
+                    className={`mt-2 flex items-start gap-2 text-xs rounded-lg px-3 py-2 ${
+                      rateWarning.level === 'error'
+                        ? 'bg-red-100 text-red-700 border border-red-200'
+                        : 'bg-amber-50 text-amber-800 border border-amber-200'
+                    }`}
+                  >
+                    <AlertTriangle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+                    <span>{rateWarning.msg}</span>
+                  </div>
                 )}
               </div>
             </div>
 
+            {/* Interest type */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="label">Interest Calculation</label>
+                <label className="label">
+                  Interest Calculation
+                  <span className="ml-1 text-slate-400 font-normal text-xs">(ब्याज गणना)</span>
+                </label>
                 <div className="flex gap-2">
-                  {['simple', 'compound'].map((type) => (
+                  {[
+                    { key: 'simple', icon: '📐', label: 'Simple', nepali: 'साधारण' },
+                    { key: 'compound', icon: '📈', label: 'Compound', nepali: 'चक्रवृद्धि' },
+                  ].map(({ key, icon, label, nepali }) => (
                     <button
-                      key={type}
+                      key={key}
                       type="button"
-                      onClick={() => set('interestType', type)}
-                      className={`flex-1 py-2 px-3 rounded-xl text-sm font-medium border transition-all ${
-                        form.interestType === type
+                      onClick={() => set('interestType', key)}
+                      className={`flex-1 py-2 px-3 rounded-xl text-sm font-medium border transition-all text-left ${
+                        form.interestType === key
                           ? 'bg-nepal-red text-white border-nepal-red'
                           : 'bg-white text-slate-600 border-slate-200 hover:border-nepal-red'
                       }`}
                     >
-                      {type === 'simple' ? '📐 Simple' : '📈 Compound'}
+                      {icon} {label}
+                      <span className="block text-xs opacity-70">{nepali}</span>
                     </button>
                   ))}
                 </div>
+                <p className="text-xs text-slate-500 mt-2">
+                  {form.interestType === 'simple'
+                    ? 'Interest is calculated only on the original principal. Common for sahukars and cooperatives in Terai.'
+                    : 'Interest is added to principal each period — "Byaj ma Byaj" (ब्याजमा ब्याज). Common with banks. Used illegally by some moneylenders.'}
+                </p>
               </div>
 
               {form.interestType === 'compound' && (
                 <div>
-                  <label className="label">Compounded</label>
+                  <label className="label">Compounded Every</label>
                   <select
                     className="input-field"
                     value={form.compoundFrequency}
                     onChange={(e) => set('compoundFrequency', e.target.value)}
                   >
-                    <option value="monthly">Monthly (12x/year)</option>
-                    <option value="quarterly">Quarterly (4x/year)</option>
-                    <option value="annually">Annually (1x/year)</option>
+                    <option value="monthly">Monthly — महिनावारी (12x/year) · Banks standard</option>
+                    <option value="quarterly">Quarterly — त्रैमासिक (4x/year)</option>
+                    <option value="annually">Annually — वार्षिक (1x/year)</option>
                   </select>
+                  {form.lenderType === 'person' && (
+                    <div className="mt-2 flex items-start gap-2 text-xs bg-amber-50 text-amber-800 border border-amber-200 rounded-lg px-3 py-2">
+                      <AlertTriangle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+                      Compound interest from an informal sahukar is considered "Meter Byaj" — exploitative and illegal under Nepal law if excessive.
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -245,8 +487,16 @@ export default function LoanForm({ loan, onSave, onClose }) {
               <label className="label">Notes</label>
               <textarea
                 className="input-field resize-none"
-                rows={2}
-                placeholder="Purpose, conditions, collateral..."
+                rows={3}
+                placeholder={
+                  form.lenderType === 'person'
+                    ? 'Purpose, collateral (land/gold?), verbal agreement details...'
+                    : form.lenderType === 'cooperative'
+                    ? 'Loan purpose, group guarantee, installment plan...'
+                    : form.lenderType === 'microfinance'
+                    ? 'Group (samuh) name, field officer, kista amount...'
+                    : 'Account number, EMI amount, loan officer...'
+                }
                 value={form.notes}
                 onChange={(e) => set('notes', e.target.value)}
               />
@@ -264,6 +514,7 @@ export default function LoanForm({ loan, onSave, onClose }) {
                   }`}
                 >
                   ✅ Active
+                  <span className="block text-xs opacity-80">बाँकी छ</span>
                 </button>
                 <button
                   type="button"
@@ -275,12 +526,13 @@ export default function LoanForm({ loan, onSave, onClose }) {
                   }`}
                 >
                   🏁 Paid/Closed
+                  <span className="block text-xs opacity-80">चुक्ता भयो</span>
                 </button>
               </div>
               {!form.isActive && (
                 <p className="text-xs text-slate-500 mt-2 flex items-center gap-1">
                   <AlertCircle className="w-3 h-3" />
-                  Closed loans are excluded from totals
+                  Closed loans are excluded from dashboard totals
                 </p>
               )}
             </div>
