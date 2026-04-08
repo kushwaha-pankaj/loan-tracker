@@ -27,7 +27,7 @@ export default function Header({ activeTab, setActiveTab, onAddLoan }) {
           {[
             { id: 'dashboard', label: '📊 Dashboard' },
             { id: 'loans',     label: '📋 All Loans' },
-            { id: 'calculator', label: '🏔️ Terai Calculator' },
+            { id: 'calculator', label: '🏔️ Nepali Calculator' },
           ].map((tab) => (
             <button
               key={tab.id}
