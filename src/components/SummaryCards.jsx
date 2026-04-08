@@ -3,13 +3,13 @@ import { TrendingUp, DollarSign, AlertCircle, CheckCircle } from 'lucide-react'
 
 function Card({ icon: Icon, iconBg, title, amount, sub, border }) {
   return (
-    <div className={`card p-5 border-l-4 ${border}`}>
+    <div className={`card p-3 sm:p-5 border-l-4 ${border}`}>
       <div className="flex items-start justify-between">
         <div className="flex-1 min-w-0">
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
             {title}
           </p>
-          <p className="text-2xl font-extrabold text-slate-800 currency leading-tight truncate">
+          <p className="text-lg sm:text-2xl font-extrabold text-slate-800 currency leading-tight truncate">
             {formatNPR(amount)}
           </p>
           <p className="text-xs text-slate-500 mt-1 font-medium">{sub}</p>
