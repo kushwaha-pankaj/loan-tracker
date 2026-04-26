@@ -23,6 +23,8 @@ import {
   initFirebase,
   teardownFirebase,
   getDb,
+  DEFAULT_CONFIG,
+  DEFAULT_FAMILY,
 } from './firebase'
 
 // ── localStorage helpers ──────────────────────────────────────────────────────
@@ -114,13 +116,11 @@ export default function App() {
   const [familyCode, setFamilyCode] = useState(lsFamily)
   const unsubRef = useRef(null)
 
-  // ── Try to connect on mount if config exists ────────────────────────────────
+  // ── Connect on mount — use saved config or baked-in defaults ─────────────────
   useEffect(() => {
-    const cfg = loadFirebaseConfig()
-    const fc  = lsFamily()
-    if (cfg && fc) {
-      connectFirestore(cfg, fc)
-    }
+    const cfg = loadFirebaseConfig() ?? DEFAULT_CONFIG
+    const fc  = lsFamily() || DEFAULT_FAMILY
+    connectFirestore(cfg, fc)
   }, []) // eslint-disable-line
 
   function reportError(prefix, err) {
@@ -202,13 +202,9 @@ export default function App() {
   }
 
   function handleRetry() {
-    const cfg = loadFirebaseConfig()
-    const fc  = familyCode || lsFamily()
-    if (cfg && fc) {
-      connectFirestore(cfg, fc)
-    } else {
-      setShowSyncSetup(true)
-    }
+    const cfg = loadFirebaseConfig() ?? DEFAULT_CONFIG
+    const fc  = familyCode || lsFamily() || DEFAULT_FAMILY
+    connectFirestore(cfg, fc)
   }
 
   async function handleDisconnect() {

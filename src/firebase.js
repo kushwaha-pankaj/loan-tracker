@@ -4,6 +4,16 @@ import { getFirestore } from 'firebase/firestore'
 const APP_NAME = 'loan-tracker'
 const CONFIG_KEY = 'nepal-loan-tracker-firebase-config'
 
+export const DEFAULT_CONFIG = {
+  apiKey: 'AIzaSyDAkYfo2kfzEYnnHgpz3bPIWaeJHsXhEHM',
+  authDomain: 'loan-tracker-6abc0.firebaseapp.com',
+  projectId: 'loan-tracker-6abc0',
+  storageBucket: 'loan-tracker-6abc0.firebasestorage.app',
+  messagingSenderId: '1064024752753',
+  appId: '1:1064024752753:web:f6657684c406a8082911d0',
+}
+export const DEFAULT_FAMILY = 'kushwaha-family'
+
 export function loadFirebaseConfig() {
   try {
     const raw = localStorage.getItem(CONFIG_KEY)
