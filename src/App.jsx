@@ -8,6 +8,7 @@ import {
   getDocs,
   writeBatch,
 } from 'firebase/firestore'
+import { PlusCircle, Trash2, Cloud, CloudOff, AlertCircle, RefreshCw, Loader2 } from 'lucide-react'
 import Header from './components/Header'
 import SummaryCards from './components/SummaryCards'
 import LoanCharts from './components/LoanCharts'
@@ -15,7 +16,9 @@ import LoanForm from './components/LoanForm'
 import LoanTable from './components/LoanTable'
 import SyncSetup from './components/SyncSetup'
 import NepalTeraiCalculator from './components/NepalTeraiCalculator'
-import { aggregateSummary, getSampleLoans } from './utils/calculations'
+import Sheet from './components/Sheet'
+import RecordPaymentSheet from './components/RecordPaymentSheet'
+import { aggregateSummary, getSampleLoans, sortPayments } from './utils/calculations'
 import {
   loadFirebaseConfig,
   saveFirebaseConfig,
@@ -26,6 +29,12 @@ import {
   DEFAULT_CONFIG,
   DEFAULT_FAMILY,
 } from './firebase'
+
+const MOBILE_TABS = [
+  { id: 'dashboard', label: 'Home' },
+  { id: 'loans', label: 'Loans' },
+  { id: 'calculator', label: 'Calc' },
+]
 
 // ── localStorage helpers ──────────────────────────────────────────────────────
 const LS_LOANS = 'nepal-loan-tracker-v1'
@@ -42,6 +51,23 @@ function lsFamily() {
   return localStorage.getItem(LS_FAMILY) || ''
 }
 
+function stripUndefinedDeep(value) {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => stripUndefinedDeep(item))
+      .filter((item) => item !== undefined)
+  }
+  if (value && typeof value === 'object') {
+    const out = {}
+    for (const [k, v] of Object.entries(value)) {
+      if (v === undefined) continue
+      out[k] = stripUndefinedDeep(v)
+    }
+    return out
+  }
+  return value
+}
+
 // ── Firestore helpers ─────────────────────────────────────────────────────────
 function loansCol(familyCode) {
   return collection(getDb(), 'families', familyCode, 'loans')
@@ -55,47 +81,87 @@ function SyncBadge({ status, familyCode, syncError, onSetup, onRetry, onDisconne
     offline: 'bg-slate-100 text-slate-500',
     error:   'bg-red-100 text-red-600',
   }
+  const Icon = {
+    synced:  Cloud,
+    syncing: Loader2,
+    offline: CloudOff,
+    error:   AlertCircle,
+  }[status]
   const labels = {
-    synced:  `☁️ Synced · ${familyCode}`,
-    syncing: '⏳ Syncing...',
-    offline: '💾 Offline mode',
-    error:   '⚠️ Sync error',
+    synced:  'Synced',
+    syncing: 'Syncing…',
+    offline: 'Offline mode',
+    error:   'Sync error',
   }
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-2">
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <span className={`text-xs font-semibold px-3 py-1 rounded-full ${styles[status]}`}>
-          {labels[status]}
+      <div
+        className="flex items-center justify-between gap-3 flex-wrap"
+        aria-live="polite"
+      >
+        <span
+          className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-full ${styles[status]}`}
+        >
+          <Icon
+            className={`w-3.5 h-3.5 ${status === 'syncing' ? 'animate-spin' : ''}`}
+            aria-hidden="true"
+          />
+          <span>{labels[status]}</span>
+          {(status === 'synced' || status === 'syncing') && familyCode && (
+            <span className="hidden xs:inline opacity-80">·</span>
+          )}
+          {(status === 'synced' || status === 'syncing') && familyCode && (
+            <span className="hidden xs:inline max-w-[10rem] truncate">{familyCode}</span>
+          )}
         </span>
-        <div className="flex items-center gap-3">
+
+        <div className="flex items-center gap-2 flex-wrap">
           {status === 'offline' && (
-            <button onClick={onSetup} className="text-xs text-nepal-red font-semibold hover:underline">
+            <button
+              onClick={onSetup}
+              className="text-xs text-nepal-red font-semibold hover:underline px-2 py-1 min-h-[32px]"
+            >
               Enable cloud sync →
             </button>
           )}
           {status === 'error' && (
             <>
-              <button onClick={onRetry} className="text-xs text-nepal-red font-semibold hover:underline">
-                Retry
+              <button
+                onClick={onRetry}
+                className="inline-flex items-center gap-1 text-xs text-nepal-red font-semibold hover:underline px-2 py-1 min-h-[32px]"
+              >
+                <RefreshCw className="w-3 h-3" aria-hidden="true" /> Retry
               </button>
-              <button onClick={onSetup} className="text-xs text-slate-500 hover:text-slate-700 hover:underline">
+              <button
+                onClick={onSetup}
+                className="text-xs text-slate-500 hover:text-slate-700 hover:underline px-2 py-1 min-h-[32px]"
+              >
                 Edit settings
               </button>
-              <button onClick={onDisconnect} className="text-xs text-slate-400 hover:text-slate-600 hover:underline">
+              <button
+                onClick={onDisconnect}
+                className="text-xs text-slate-400 hover:text-slate-600 hover:underline px-2 py-1 min-h-[32px]"
+              >
                 Disconnect
               </button>
             </>
           )}
           {(status === 'synced' || status === 'syncing') && (
-            <button onClick={onDisconnect} className="text-xs text-slate-400 hover:text-slate-600 hover:underline">
+            <button
+              onClick={onDisconnect}
+              className="text-xs text-slate-400 hover:text-slate-600 hover:underline px-2 py-1 min-h-[32px]"
+            >
               Disconnect
             </button>
           )}
         </div>
       </div>
       {status === 'error' && syncError && (
-        <p className="text-xs text-red-600 mt-1.5 break-words">
+        <p
+          role="alert"
+          className="text-xs text-red-600 mt-1.5 break-words"
+        >
           <span className="font-semibold">Details:</span> {syncError}
         </p>
       )}
@@ -111,6 +177,8 @@ export default function App() {
   const [editingLoan, setEditingLoan] = useState(null)
   const [deleteConfirm, setDeleteConfirm] = useState(null)
   const [showSyncSetup, setShowSyncSetup] = useState(false)
+  const [paymentForLoan, setPaymentForLoan] = useState(null)
+  const [paymentBusy, setPaymentBusy] = useState(false)
   const [syncStatus, setSyncStatus] = useState('offline') // offline | syncing | synced | error
   const [syncError, setSyncError]   = useState(null)
   const [familyCode, setFamilyCode] = useState(lsFamily)
@@ -179,7 +247,6 @@ export default function App() {
     setFamilyCode(fc)
     setShowSyncSetup(false)
 
-    // Push existing local loans up if Firestore is empty
     try {
       const existing = await getDocs(loansCol(fc))
       if (existing.empty && loans.length > 0) {
@@ -220,10 +287,11 @@ export default function App() {
 
   // ── CRUD — optimistic local update first, then Firestore write ─────────────
   const saveLoan = useCallback(async (loan) => {
-    fallbackSave(loan) // optimistic
+    const cleanLoan = stripUndefinedDeep(loan)
+    fallbackSave(cleanLoan)
     if (syncStatus !== 'offline' && familyCode) {
       try {
-        await setDoc(doc(loansCol(familyCode), loan.id), loan)
+        await setDoc(doc(loansCol(familyCode), cleanLoan.id), cleanLoan)
       } catch (err) {
         reportError('Save failed', err)
       }
@@ -241,7 +309,7 @@ export default function App() {
   }
 
   const deleteLoan = useCallback(async (id) => {
-    fallbackDelete(id) // optimistic
+    fallbackDelete(id)
     setDeleteConfirm(null)
     if (syncStatus !== 'offline' && familyCode) {
       try {
@@ -272,10 +340,27 @@ export default function App() {
   const openEdit = useCallback((loan) => { setEditingLoan(loan); setShowForm(true) }, [])
   const closeForm = useCallback(() => { setShowForm(false); setEditingLoan(null) }, [])
 
+  const savePaymentToLoan = useCallback(
+    async (payment) => {
+      const loan = paymentForLoan
+      if (!loan) return
+      setPaymentBusy(true)
+      try {
+        const next = sortPayments([...(loan.payments || []), payment])
+        await saveLoan({ ...loan, payments: next })
+        setPaymentForLoan(null)
+      } finally {
+        setPaymentBusy(false)
+      }
+    },
+    [paymentForLoan, saveLoan],
+  )
+
   const summary = aggregateSummary(loans)
+  const anySheetOpen = showForm || !!deleteConfirm || showSyncSetup || !!paymentForLoan
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen-d bg-slate-50 flex flex-col">
       <Header activeTab={activeTab} setActiveTab={setActiveTab} onAddLoan={openAdd} />
 
       {/* Sync status bar */}
@@ -290,23 +375,29 @@ export default function App() {
         />
       </div>
 
-      <main className="max-w-7xl mx-auto px-3 sm:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6">
+      <main
+        id="main"
+        className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6 pb-[calc(env(safe-area-inset-bottom)+8.5rem)] sm:pb-8"
+      >
         <SummaryCards summary={summary} />
 
         {activeTab === 'dashboard' && (
           <>
             <div className="flex items-center justify-between">
               <h2 className="text-base font-bold text-slate-700">Overview Charts</h2>
-              <p className="text-xs text-slate-400">
-                Auto-calculated as of{' '}
+              <p className="text-xs text-slate-400 hidden xs:block">
+                As of{' '}
                 {new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
               </p>
             </div>
-            <LoanCharts loans={loans} />
+            <LoanCharts loans={loans} onAddLoan={openAdd} />
             <div>
               <div className="flex items-center justify-between mb-3">
                 <h2 className="text-base font-bold text-slate-700">Active Loans</h2>
-                <button onClick={() => setActiveTab('loans')} className="text-sm text-nepal-red font-medium hover:underline">
+                <button
+                  onClick={() => setActiveTab('loans')}
+                  className="text-sm text-nepal-red font-medium hover:underline px-2 py-1 min-h-[32px]"
+                >
                   View all →
                 </button>
               </div>
@@ -316,6 +407,8 @@ export default function App() {
                 onDelete={setDeleteConfirm}
                 onToggle={toggleLoan}
                 onAddLoan={openAdd}
+                onRecordPayment={setPaymentForLoan}
+                onSaveLoan={saveLoan}
               />
             </div>
           </>
@@ -325,7 +418,9 @@ export default function App() {
           <>
             <div className="flex items-center justify-between">
               <h2 className="text-base font-bold text-slate-700">All Loans ({loans.length})</h2>
-              <button onClick={openAdd} className="btn-primary text-sm">+ Add Loan</button>
+              <button onClick={openAdd} className="hidden sm:inline-flex btn-primary text-sm">
+                <PlusCircle className="w-4 h-4" aria-hidden="true" /> Add Loan
+              </button>
             </div>
             <LoanTable
               loans={loans}
@@ -333,6 +428,8 @@ export default function App() {
               onDelete={setDeleteConfirm}
               onToggle={toggleLoan}
               onAddLoan={openAdd}
+              onRecordPayment={setPaymentForLoan}
+              onSaveLoan={saveLoan}
             />
           </>
         )}
@@ -340,32 +437,111 @@ export default function App() {
         {activeTab === 'calculator' && <NepalTeraiCalculator />}
       </main>
 
-      <footer className="mt-12 py-6 border-t border-slate-200 text-center text-xs text-slate-400">
-        <p>Loan Tracker Nepal — {syncStatus === 'offline' ? 'Data stored locally in your browser' : `Synced via Firebase · Family: ${familyCode}`}</p>
-        <p className="mt-1">परिवार ऋण व्यवस्थापन · Family Loan Management</p>
+      <footer className="py-5 border-t border-slate-200 text-center text-[11px] sm:text-xs text-slate-400 pb-[calc(env(safe-area-inset-bottom)+1.25rem)]">
+        <p className="px-3">
+          Loan Tracker Nepal ·{' '}
+          {syncStatus === 'offline'
+            ? 'Stored locally on this device'
+            : `Synced via Firebase · ${familyCode}`}
+        </p>
+        <p className="hidden sm:block mt-1">परिवार ऋण व्यवस्थापन · Family Loan Management</p>
       </footer>
 
-      {/* Modals */}
-      {showForm && <LoanForm loan={editingLoan} onSave={saveLoan} onClose={closeForm} />}
-
-      {deleteConfirm && (
-        <div className="modal-overlay fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="modal-content bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm text-center">
-            <div className="text-5xl mb-4">🗑️</div>
-            <h3 className="text-lg font-bold text-slate-800">Delete Loan?</h3>
-            <p className="text-slate-500 text-sm mt-2">This cannot be undone. The record will be removed for all family members.</p>
-            <div className="flex gap-3 mt-6">
-              <button onClick={() => setDeleteConfirm(null)} className="btn-secondary flex-1 justify-center">Cancel</button>
-              <button
-                onClick={() => deleteLoan(deleteConfirm)}
-                className="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold px-4 py-2 rounded-xl transition-all duration-200 flex items-center justify-center active:scale-95"
-              >
-                Delete
-              </button>
-            </div>
+      {/* Mobile bottom app-style navigation */}
+      <nav
+        aria-label="Bottom navigation"
+        className="sm:hidden fixed left-0 right-0 bottom-0 z-header px-3 pb-[calc(env(safe-area-inset-bottom)+0.35rem)] pt-2"
+      >
+        <div className="mx-auto max-w-md rounded-2xl border border-slate-200 bg-white/95 backdrop-blur shadow-lg">
+          <div className="grid grid-cols-3 gap-1 p-1.5">
+            {MOBILE_TABS.map((tab) => {
+              const isActive = activeTab === tab.id
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  aria-current={isActive ? 'page' : undefined}
+                  className={[
+                    'min-h-[48px] rounded-xl text-sm font-semibold transition-[transform,colors] duration-220 ease-ios active:scale-[0.97]',
+                    isActive
+                      ? 'bg-nepal-blue text-white shadow-sm'
+                      : 'text-slate-600 hover:bg-slate-100',
+                  ].join(' ')}
+                >
+                  {tab.label}
+                </button>
+              )
+            })}
           </div>
         </div>
+      </nav>
+
+      {/* Mobile FAB — only on phones, hidden when any sheet is open */}
+      {!anySheetOpen && (
+        <button
+          onClick={openAdd}
+          aria-label="Add a new loan"
+          className="sm:hidden fixed right-4 bottom-[calc(env(safe-area-inset-bottom)+5.75rem)]
+                     z-fab w-14 h-14 rounded-full bg-nepal-red text-white shadow-fab
+                     flex items-center justify-center
+                     transition-transform duration-220 ease-ios active:scale-90
+                     focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2
+                     focus-visible:ring-offset-nepal-red"
+        >
+          <PlusCircle className="w-7 h-7" strokeWidth={2.25} aria-hidden="true" />
+        </button>
       )}
+
+      {/* Modals (sheets) */}
+      {showForm && <LoanForm loan={editingLoan} onSave={saveLoan} onClose={closeForm} />}
+
+      {paymentForLoan && (
+        <RecordPaymentSheet
+          key={paymentForLoan.id}
+          loan={paymentForLoan}
+          onClose={() => {
+            if (!paymentBusy) setPaymentForLoan(null)
+          }}
+          onSave={savePaymentToLoan}
+          busy={paymentBusy}
+        />
+      )}
+
+      <Sheet
+        open={!!deleteConfirm}
+        onClose={() => setDeleteConfirm(null)}
+        size="sm"
+      >
+        {({ titleId }) => (
+          <>
+            <div className="px-6 pt-5 pb-2 text-center">
+              <div className="mx-auto w-14 h-14 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center mb-3">
+                <Trash2 className="w-6 h-6" aria-hidden="true" />
+              </div>
+              <h3 id={titleId} className="text-lg font-bold text-slate-800">
+                Delete this loan?
+              </h3>
+              <p className="text-slate-500 text-sm mt-2">
+                This cannot be undone. The record will be removed for all family members.
+              </p>
+            </div>
+            <div className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-3 p-5 pt-3 border-t border-slate-100 bg-white">
+              <button
+                onClick={() => setDeleteConfirm(null)}
+                className="btn-secondary flex-1"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => deleteLoan(deleteConfirm)}
+                className="flex-1 inline-flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white font-semibold px-4 py-3 rounded-xl transition-[transform,colors] duration-220 ease-ios active:scale-[0.97] min-h-[48px]"
+              >
+                <Trash2 className="w-4 h-4" aria-hidden="true" /> Delete
+              </button>
+            </div>
+          </>
+        )}
+      </Sheet>
 
       {showSyncSetup && (
         <SyncSetup
