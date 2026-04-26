@@ -105,7 +105,7 @@ function Step3() {
   )
 }
 
-function Step4({ config, setConfig, familyCode, setFamilyCode, onSubmit, error }) {
+function Step4({ config, setConfig, familyCode, setFamilyCode, onSubmit, error, submitting }) {
   const [showKeys, setShowKeys] = useState(false)
 
   const fields = [
@@ -163,7 +163,7 @@ function Step4({ config, setConfig, familyCode, setFamilyCode, onSubmit, error }
             <label className="label text-xs">{label}</label>
             <input
               className="input-field text-sm"
-              type={showKeys ? 'text' : key === 'apiKey' ? 'text' : 'password'}
+              type={showKeys ? 'text' : 'password'}
               placeholder={placeholder}
               value={config[key]}
               onChange={(e) => setConfig((prev) => ({ ...prev, [key]: e.target.value }))}
@@ -182,7 +182,13 @@ function Step4({ config, setConfig, familyCode, setFamilyCode, onSubmit, error }
           className="input-field"
           placeholder="e.g. kushwaha-family-2024"
           value={familyCode}
-          onChange={(e) => setFamilyCode(e.target.value.toLowerCase().replace(/\s+/g, '-'))}
+          onChange={(e) => setFamilyCode(
+            e.target.value
+              .toLowerCase()
+              .replace(/[^a-z0-9-]/g, '-')
+              .replace(/-+/g, '-')
+              .replace(/^-+/, '')
+          )}
         />
         <p className="text-xs text-slate-500 mt-1.5">
           Both you and your brother must enter the <strong>exact same code</strong>. This is your shared data space.
@@ -198,10 +204,11 @@ function Step4({ config, setConfig, familyCode, setFamilyCode, onSubmit, error }
       <button
         type="button"
         onClick={onSubmit}
-        className="btn-primary w-full justify-center"
+        disabled={submitting}
+        className="btn-primary w-full justify-center disabled:opacity-60 disabled:cursor-not-allowed"
       >
         <Wifi className="w-4 h-4" />
-        Connect & Sync
+        {submitting ? 'Connecting...' : 'Connect & Sync'}
       </button>
     </div>
   )
@@ -212,6 +219,7 @@ export default function SyncSetup({ onConnected, onSkip }) {
   const [config, setConfig] = useState(EMPTY_CONFIG)
   const [familyCode, setFamilyCode] = useState('')
   const [error, setError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
 
   async function handleConnect() {
     setError('')
@@ -224,7 +232,14 @@ export default function SyncSetup({ onConnected, onSkip }) {
       setError('Please enter a family code.')
       return
     }
-    onConnected(config, familyCode.trim())
+    setSubmitting(true)
+    try {
+      await onConnected(config, familyCode.trim())
+    } catch (err) {
+      setError(err?.message || 'Connection failed.')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -284,6 +299,7 @@ export default function SyncSetup({ onConnected, onSkip }) {
               setFamilyCode={setFamilyCode}
               onSubmit={handleConnect}
               error={error}
+              submitting={submitting}
             />
           )}
         </div>

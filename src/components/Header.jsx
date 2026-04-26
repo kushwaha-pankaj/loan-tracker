@@ -23,22 +23,23 @@ export default function Header({ activeTab, setActiveTab, onAddLoan }) {
         </div>
 
         {/* Tab navigation */}
-        <div className="flex gap-1 pb-0 overflow-x-auto">
+        <div className="flex gap-1 pb-0">
           {[
-            { id: 'dashboard', label: '📊 Dashboard' },
-            { id: 'loans',     label: '📋 All Loans' },
-            { id: 'calculator', label: '🏔️ Nepali Calculator' },
+            { id: 'dashboard',  label: '📊 Dashboard',   short: '📊 Home' },
+            { id: 'loans',      label: '📋 All Loans',   short: '📋 Loans' },
+            { id: 'calculator', label: '🏔️ Calculator',  short: '🏔️ Calc' },
           ].map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`px-5 py-2.5 text-sm font-semibold rounded-t-xl transition-all duration-200 whitespace-nowrap ${
+              className={`px-3 sm:px-5 py-2.5 text-xs sm:text-sm font-semibold rounded-t-xl transition-all duration-200 whitespace-nowrap ${
                 activeTab === tab.id
                   ? 'bg-slate-50 text-nepal-blue'
                   : 'text-blue-200 hover:text-white hover:bg-white/10'
               }`}
             >
-              {tab.label}
+              <span className="sm:hidden">{tab.short}</span>
+              <span className="hidden sm:inline">{tab.label}</span>
             </button>
           ))}
         </div>

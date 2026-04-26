@@ -74,8 +74,8 @@ export function calculateLoanMetrics(loan) {
   interest = Math.max(0, Math.round(interest))
   const total = Math.round(principal + interest)
 
-  // Daily interest (approximate)
-  const dailyInterest = Math.round((principal * annualRate) / (100 * 365))
+  // Daily interest (approximate; uses 365.25 to match yearsElapsed above)
+  const dailyInterest = Math.round((principal * annualRate) / (100 * 365.25))
 
   return {
     daysElapsed,
@@ -104,13 +104,21 @@ export function projectMonthly(loan, months = 12) {
   const rawRate = parseFloat(loan.interestRate) || 0
   const annualRate = loan.rateType === 'monthly' ? rawRate * 12 : rawRate
 
+  // Step the projection date forward by month using year/month/day arithmetic
+  // (NOT setMonth, which clips Jan 31 + 1 month → Feb 28 and silently drops
+  // 1–3 days every month for loans dated on the 29th–31st).
+  const baseY = today.getFullYear()
+  const baseM = today.getMonth()
+  const baseD = today.getDate()
+
   for (let m = 0; m <= months; m++) {
-    const projDate = new Date(today)
-    projDate.setMonth(projDate.getMonth() + m)
-    const daysTotal = Math.max(
-      0,
-      Math.floor((projDate - loanDate) / (1000 * 60 * 60 * 24))
-    )
+    const targetY = baseY + Math.floor((baseM + m) / 12)
+    const targetM = (baseM + m) % 12
+    const lastDay = new Date(targetY, targetM + 1, 0).getDate()
+    const projDate = new Date(targetY, targetM, Math.min(baseD, lastDay))
+    projDate.setHours(0, 0, 0, 0)
+
+    const daysTotal = Math.max(0, Math.floor((projDate - loanDate) / 86400000))
     const years = daysTotal / 365.25
 
     let interest = 0

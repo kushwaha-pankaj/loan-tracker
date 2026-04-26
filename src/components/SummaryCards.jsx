@@ -1,16 +1,16 @@
 import { formatNPR, toLakh } from '../utils/calculations'
 import { TrendingUp, DollarSign, AlertCircle, CheckCircle } from 'lucide-react'
 
-function Card({ icon: Icon, iconBg, title, amount, sub, border }) {
+function Card({ icon: Icon, iconBg, title, value, sub, border }) {
   return (
-    <div className={`card p-5 border-l-4 ${border}`}>
+    <div className={`card p-3 sm:p-5 border-l-4 ${border}`}>
       <div className="flex items-start justify-between">
         <div className="flex-1 min-w-0">
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
             {title}
           </p>
-          <p className="text-2xl font-extrabold text-slate-800 currency leading-tight truncate">
-            {formatNPR(amount)}
+          <p className="text-lg sm:text-2xl font-extrabold text-slate-800 currency leading-tight truncate">
+            {value}
           </p>
           <p className="text-xs text-slate-500 mt-1 font-medium">{sub}</p>
         </div>
@@ -34,7 +34,7 @@ export default function SummaryCards({ summary }) {
         icon={DollarSign}
         iconBg="bg-blue-100"
         title="Total Principal"
-        amount={totalPrincipal}
+        value={formatNPR(totalPrincipal)}
         sub={`${toLakh(totalPrincipal)} borrowed`}
         border="border-blue-400"
       />
@@ -42,7 +42,7 @@ export default function SummaryCards({ summary }) {
         icon={TrendingUp}
         iconBg="bg-orange-100"
         title="Interest Accrued"
-        amount={totalInterest}
+        value={formatNPR(totalInterest)}
         sub={`${interestRatio}% of principal`}
         border="border-orange-400"
       />
@@ -50,7 +50,7 @@ export default function SummaryCards({ summary }) {
         icon={AlertCircle}
         iconBg="bg-red-100"
         title="Total Outstanding"
-        amount={totalOutstanding}
+        value={formatNPR(totalOutstanding)}
         sub={`${toLakh(totalOutstanding)} total due`}
         border="border-red-400"
       />
@@ -58,7 +58,7 @@ export default function SummaryCards({ summary }) {
         icon={CheckCircle}
         iconBg="bg-green-100"
         title="Active Loans"
-        amount={activeCount}
+        value={activeCount}
         sub={`${totalCount - activeCount} paid / closed`}
         border="border-green-400"
       />

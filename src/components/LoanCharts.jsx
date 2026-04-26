@@ -76,31 +76,33 @@ function LenderTypePie({ loans }) {
   }
 
   return (
-    <ResponsiveContainer width="100%" height={260}>
-      <PieChart>
-        <Pie
-          data={data}
-          cx="50%"
-          cy="50%"
-          labelLine={false}
-          label={renderLabel}
-          outerRadius={100}
-          innerRadius={40}
-          dataKey="value"
-        >
-          {data.map((entry, i) => (
-            <Cell key={i} fill={TYPE_COLORS[entry.type] || CHART_COLORS[i % CHART_COLORS.length]} />
-          ))}
-        </Pie>
-        <Tooltip
-          formatter={(val) => formatNPR(val)}
-          contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '13px' }}
-        />
-        <Legend
-          formatter={(value) => <span style={{ fontSize: '12px', color: '#475569' }}>{value}</span>}
-        />
-      </PieChart>
-    </ResponsiveContainer>
+    <div className="h-48 sm:h-64">
+      <ResponsiveContainer width="100%" height="100%">
+        <PieChart>
+          <Pie
+            data={data}
+            cx="50%"
+            cy="50%"
+            labelLine={false}
+            label={renderLabel}
+            outerRadius={90}
+            innerRadius={35}
+            dataKey="value"
+          >
+            {data.map((entry, i) => (
+              <Cell key={i} fill={TYPE_COLORS[entry.type] || CHART_COLORS[i % CHART_COLORS.length]} />
+            ))}
+          </Pie>
+          <Tooltip
+            formatter={(val) => formatNPR(val)}
+            contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '13px' }}
+          />
+          <Legend
+            formatter={(value) => <span style={{ fontSize: '12px', color: '#475569' }}>{value}</span>}
+          />
+        </PieChart>
+      </ResponsiveContainer>
+    </div>
   )
 }
 
@@ -109,11 +111,9 @@ function PrincipalInterestBar({ loans }) {
   const active = loans.filter((l) => l.isActive)
   const data = active.map((loan) => {
     const { interest } = calculateLoanMetrics(loan)
+    const name = loan.lenderName || '—'
     return {
-      name:
-        loan.lenderName.length > 12
-          ? loan.lenderName.slice(0, 11) + '…'
-          : loan.lenderName,
+      name: name.length > 12 ? name.slice(0, 11) + '…' : name,
       principal: parseFloat(loan.principal) || 0,
       interest,
     }
@@ -122,23 +122,19 @@ function PrincipalInterestBar({ loans }) {
   if (!data.length) return <EmptyState />
 
   return (
-    <ResponsiveContainer width="100%" height={260}>
-      <BarChart data={data} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-        <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#64748b' }} />
-        <YAxis
-          tickFormatter={(v) => toLakh(v)}
-          tick={{ fontSize: 11, fill: '#64748b' }}
-          width={55}
-        />
-        <Tooltip content={<NprTooltip />} />
-        <Legend
-          formatter={(value) => <span style={{ fontSize: '12px', color: '#475569' }}>{value}</span>}
-        />
-        <Bar dataKey="principal" name="Principal" fill="#1e3a5f" radius={[4, 4, 0, 0]} />
-        <Bar dataKey="interest" name="Interest" fill="#c8102e" radius={[4, 4, 0, 0]} />
-      </BarChart>
-    </ResponsiveContainer>
+    <div className="h-48 sm:h-64">
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={data} margin={{ top: 5, right: 5, left: 0, bottom: 5 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+          <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#64748b' }} />
+          <YAxis tickFormatter={(v) => toLakh(v)} tick={{ fontSize: 10, fill: '#64748b' }} width={48} />
+          <Tooltip content={<NprTooltip />} />
+          <Legend formatter={(value) => <span style={{ fontSize: '12px', color: '#475569' }}>{value}</span>} />
+          <Bar dataKey="principal" name="Principal" fill="#1e3a5f" radius={[4, 4, 0, 0]} />
+          <Bar dataKey="interest" name="Interest" fill="#c8102e" radius={[4, 4, 0, 0]} />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
   )
 }
 
@@ -152,25 +148,25 @@ function InterestProjection({ loans }) {
   const projections = active.map((loan) => projectMonthly(loan, months))
   const labels = projections[0].map((p) => p.month)
 
+  const shortName = (loan) => {
+    const n = loan.lenderName || '—'
+    return n.length > 10 ? n.slice(0, 9) + '…' : n
+  }
+
   const data = labels.map((label, i) => {
     const row = { month: label }
     active.forEach((loan, j) => {
-      const name =
-        loan.lenderName.length > 10
-          ? loan.lenderName.slice(0, 9) + '…'
-          : loan.lenderName
-      row[name] = projections[j][i].outstanding
+      row[shortName(loan)] = projections[j][i].outstanding
     })
     return row
   })
 
-  const keys = active.map((loan) =>
-    loan.lenderName.length > 10 ? loan.lenderName.slice(0, 9) + '…' : loan.lenderName
-  )
+  const keys = active.map(shortName)
 
   return (
-    <ResponsiveContainer width="100%" height={260}>
-      <AreaChart data={data} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
+    <div className="h-48 sm:h-64">
+      <ResponsiveContainer width="100%" height="100%">
+      <AreaChart data={data} margin={{ top: 5, right: 5, left: 0, bottom: 5 }}>
         <defs>
           {keys.map((key, i) => (
             <linearGradient key={key} id={`grad-${i}`} x1="0" y1="0" x2="0" y2="1">
@@ -180,28 +176,19 @@ function InterestProjection({ loans }) {
           ))}
         </defs>
         <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-        <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#64748b' }} />
-        <YAxis
-          tickFormatter={(v) => toLakh(v)}
-          tick={{ fontSize: 11, fill: '#64748b' }}
-          width={55}
-        />
+        <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#64748b' }} />
+        <YAxis tickFormatter={(v) => toLakh(v)} tick={{ fontSize: 10, fill: '#64748b' }} width={48} />
         <Tooltip content={<NprTooltip />} />
-        <Legend
-          formatter={(value) => <span style={{ fontSize: '12px', color: '#475569' }}>{value}</span>}
-        />
+        <Legend formatter={(value) => <span style={{ fontSize: '12px', color: '#475569' }}>{value}</span>} />
         {keys.map((key, i) => (
-          <Area
-            key={key}
-            type="monotone"
-            dataKey={key}
+          <Area key={key} type="monotone" dataKey={key}
             stroke={CHART_COLORS[i % CHART_COLORS.length]}
-            fill={`url(#grad-${i})`}
-            strokeWidth={2}
+            fill={`url(#grad-${i})`} strokeWidth={2}
           />
         ))}
       </AreaChart>
-    </ResponsiveContainer>
+      </ResponsiveContainer>
+    </div>
   )
 }
 
@@ -216,28 +203,28 @@ function EmptyState() {
 export default function LoanCharts({ loans }) {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      <div className="card p-6">
-        <h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2">
-          <span className="w-3 h-3 rounded-full bg-nepal-red inline-block" />
+      <div className="card p-4 sm:p-6">
+        <h3 className="font-bold text-slate-700 mb-3 sm:mb-4 flex items-center gap-2 text-sm sm:text-base">
+          <span className="w-3 h-3 rounded-full bg-nepal-red inline-block shrink-0" />
           Loan Distribution by Source
         </h3>
         <LenderTypePie loans={loans} />
       </div>
 
-      <div className="card p-6">
-        <h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2">
-          <span className="w-3 h-3 rounded-full bg-nepal-blue inline-block" />
+      <div className="card p-4 sm:p-6">
+        <h3 className="font-bold text-slate-700 mb-3 sm:mb-4 flex items-center gap-2 text-sm sm:text-base">
+          <span className="w-3 h-3 rounded-full bg-nepal-blue inline-block shrink-0" />
           Principal vs Interest Accrued
         </h3>
         <PrincipalInterestBar loans={loans} />
       </div>
 
-      <div className="card p-6 lg:col-span-2">
-        <h3 className="font-bold text-slate-700 mb-1 flex items-center gap-2">
-          <span className="w-3 h-3 rounded-full bg-green-500 inline-block" />
-          12-Month Outstanding Amount Projection
+      <div className="card p-4 sm:p-6 lg:col-span-2">
+        <h3 className="font-bold text-slate-700 mb-1 flex items-center gap-2 text-sm sm:text-base">
+          <span className="w-3 h-3 rounded-full bg-green-500 inline-block shrink-0" />
+          12-Month Outstanding Projection
         </h3>
-        <p className="text-xs text-slate-400 mb-4">
+        <p className="text-xs text-slate-400 mb-3 sm:mb-4">
           How much will each loan cost if not repaid (showing top 4 active loans)
         </p>
         <InterestProjection loans={loans} />

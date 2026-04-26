@@ -246,10 +246,10 @@ export default function NepalLoanCalculator() {
     <div className="max-w-4xl mx-auto space-y-5">
 
       {/* Header */}
-      <div className="text-center py-6">
-        <div className="text-5xl mb-3">🏔️</div>
-        <h2 className="text-2xl font-bold text-slate-800">Nepali Loan Calculator</h2>
-        <p className="text-slate-400 text-sm mt-1">नेपाली ऋण क्याल्कुलेटर · Compound Interest · BS & AD Dates</p>
+      <div className="text-center py-4 sm:py-6">
+        <div className="text-4xl sm:text-5xl mb-2 sm:mb-3">🏔️</div>
+        <h2 className="text-xl sm:text-2xl font-bold text-slate-800">Nepali Loan Calculator</h2>
+        <p className="text-slate-400 text-xs sm:text-sm mt-1">नेपाली ऋण क्याल्कुलेटर · Compound Interest · BS & AD Dates</p>
       </div>
 
       {/* Loan Type Pills */}
@@ -274,7 +274,7 @@ export default function NepalLoanCalculator() {
 
       {/* Date / Duration toggle */}
       <div className="card p-4">
-        <div className="flex items-center gap-2 mb-4">
+        <div className="flex flex-wrap items-center gap-2 mb-4">
           <div className="flex rounded-xl border border-slate-200 overflow-hidden">
             <button
               onClick={() => setInputMode('date')}
@@ -487,8 +487,8 @@ export default function NepalLoanCalculator() {
                   <tr className="bg-slate-50 border-b border-slate-200">
                     <th className="text-left p-2 font-semibold text-slate-500">Loan Type</th>
                     <th className="text-center p-2 font-semibold text-slate-500">Rate</th>
-                    <th className="text-left p-2 font-semibold text-slate-500">Institution</th>
-                    <th className="text-left p-2 font-semibold text-slate-500">Note</th>
+                    <th className="text-left p-2 font-semibold text-slate-500 hidden sm:table-cell">Institution</th>
+                    <th className="text-left p-2 font-semibold text-slate-500 hidden md:table-cell">Note</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -496,8 +496,8 @@ export default function NepalLoanCalculator() {
                     <tr key={i} className="border-t border-slate-100 hover:bg-slate-50">
                       <td className="p-2 text-slate-700 font-medium">{r.type}</td>
                       <td className="p-2 text-center font-mono font-bold text-nepal-red">{r.rate}</td>
-                      <td className="p-2 text-slate-500">{r.institution}</td>
-                      <td className="p-2 text-slate-400">{r.note}</td>
+                      <td className="p-2 text-slate-500 hidden sm:table-cell">{r.institution}</td>
+                      <td className="p-2 text-slate-400 hidden md:table-cell">{r.note}</td>
                     </tr>
                   ))}
                 </tbody>
