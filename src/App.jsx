@@ -21,13 +21,13 @@ import {
   saveFirebaseConfig,
   clearFirebaseConfig,
   initFirebase,
+  teardownFirebase,
   getDb,
 } from './firebase'
 
 // ── localStorage helpers ──────────────────────────────────────────────────────
 const LS_LOANS = 'nepal-loan-tracker-v1'
 const LS_FAMILY = 'nepal-loan-tracker-family-code'
-const LS_SYNC   = 'nepal-loan-tracker-sync-dismissed'
 
 function lsLoad() {
   try { return JSON.parse(localStorage.getItem(LS_LOANS)) || getSampleLoans() }
@@ -46,12 +46,12 @@ function loansCol(familyCode) {
 }
 
 // ── Sync status badge ─────────────────────────────────────────────────────────
-function SyncBadge({ status, familyCode, onSetup, onDisconnect }) {
+function SyncBadge({ status, familyCode, syncError, onSetup, onRetry, onDisconnect }) {
   const styles = {
-    synced:      'bg-green-100 text-green-700',
-    syncing:     'bg-yellow-100 text-yellow-700',
-    offline:     'bg-slate-100 text-slate-500',
-    error:       'bg-red-100 text-red-600',
+    synced:  'bg-green-100 text-green-700',
+    syncing: 'bg-yellow-100 text-yellow-700',
+    offline: 'bg-slate-100 text-slate-500',
+    error:   'bg-red-100 text-red-600',
   }
   const labels = {
     synced:  `☁️ Synced · ${familyCode}`,
@@ -61,18 +61,41 @@ function SyncBadge({ status, familyCode, onSetup, onDisconnect }) {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-2 flex items-center justify-between">
-      <span className={`text-xs font-semibold px-3 py-1 rounded-full ${styles[status]}`}>
-        {labels[status]}
-      </span>
-      {status === 'offline' ? (
-        <button onClick={onSetup} className="text-xs text-nepal-red font-semibold hover:underline">
-          Enable cloud sync →
-        </button>
-      ) : (
-        <button onClick={onDisconnect} className="text-xs text-slate-400 hover:text-slate-600 hover:underline">
-          Disconnect
-        </button>
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-2">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <span className={`text-xs font-semibold px-3 py-1 rounded-full ${styles[status]}`}>
+          {labels[status]}
+        </span>
+        <div className="flex items-center gap-3">
+          {status === 'offline' && (
+            <button onClick={onSetup} className="text-xs text-nepal-red font-semibold hover:underline">
+              Enable cloud sync →
+            </button>
+          )}
+          {status === 'error' && (
+            <>
+              <button onClick={onRetry} className="text-xs text-nepal-red font-semibold hover:underline">
+                Retry
+              </button>
+              <button onClick={onSetup} className="text-xs text-slate-500 hover:text-slate-700 hover:underline">
+                Edit settings
+              </button>
+              <button onClick={onDisconnect} className="text-xs text-slate-400 hover:text-slate-600 hover:underline">
+                Disconnect
+              </button>
+            </>
+          )}
+          {(status === 'synced' || status === 'syncing') && (
+            <button onClick={onDisconnect} className="text-xs text-slate-400 hover:text-slate-600 hover:underline">
+              Disconnect
+            </button>
+          )}
+        </div>
+      </div>
+      {status === 'error' && syncError && (
+        <p className="text-xs text-red-600 mt-1.5 break-words">
+          <span className="font-semibold">Details:</span> {syncError}
+        </p>
       )}
     </div>
   )
@@ -87,6 +110,7 @@ export default function App() {
   const [deleteConfirm, setDeleteConfirm] = useState(null)
   const [showSyncSetup, setShowSyncSetup] = useState(false)
   const [syncStatus, setSyncStatus] = useState('offline') // offline | syncing | synced | error
+  const [syncError, setSyncError]   = useState(null)
   const [familyCode, setFamilyCode] = useState(lsFamily)
   const unsubRef = useRef(null)
 
@@ -99,38 +123,54 @@ export default function App() {
     }
   }, []) // eslint-disable-line
 
-  function connectFirestore(config, fc) {
-    const { db, error } = initFirebase(config)
-    if (error) {
-      setSyncStatus('error')
-      return
-    }
-    setSyncStatus('syncing')
-    setFamilyCode(fc)
-    localStorage.setItem(LS_FAMILY, fc)
+  function reportError(prefix, err) {
+    const msg = err?.message || String(err) || 'Unknown error'
+    console.error(`[firestore] ${prefix}:`, err)
+    setSyncError(`${prefix}: ${msg}`)
+    setSyncStatus('error')
+  }
 
-    // Real-time listener
-    const unsub = onSnapshot(
+  function subscribeLoans(fc) {
+    if (unsubRef.current) { unsubRef.current(); unsubRef.current = null }
+    unsubRef.current = onSnapshot(
       loansCol(fc),
       (snap) => {
         const remote = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
         setLoans(remote)
         lsSave(remote)
         setSyncStatus('synced')
+        setSyncError(null)
       },
-      () => setSyncStatus('error')
+      (err) => reportError('Listener failed', err),
     )
-    unsubRef.current = unsub
   }
 
-  // Migrate any existing localStorage loans to Firestore on first connect
+  function connectFirestore(config, fc) {
+    setSyncError(null)
+    const { error } = initFirebase(config)
+    if (error) {
+      reportError('Init failed', new Error(error))
+      return
+    }
+    setSyncStatus('syncing')
+    setFamilyCode(fc)
+    localStorage.setItem(LS_FAMILY, fc)
+    try {
+      subscribeLoans(fc)
+    } catch (err) {
+      reportError('Subscribe failed', err)
+    }
+  }
+
+  // Migrate existing localStorage loans to Firestore on first connect
   async function handleSyncConnected(config, fc) {
+    setSyncError(null)
     saveFirebaseConfig(config)
     localStorage.setItem(LS_FAMILY, fc)
 
     const { db, error } = initFirebase(config)
     if (error) {
-      setSyncStatus('error')
+      reportError('Init failed', new Error(error))
       setShowSyncSetup(false)
       return
     }
@@ -149,40 +189,48 @@ export default function App() {
         })
         await batch.commit()
       }
-    } catch {}
+    } catch (err) {
+      reportError('Initial migration failed', err)
+      return
+    }
 
-    // Start real-time listener
-    const unsub = onSnapshot(
-      loansCol(fc),
-      (snap) => {
-        const remote = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
-        setLoans(remote)
-        lsSave(remote)
-        setSyncStatus('synced')
-      },
-      () => setSyncStatus('error')
-    )
-    unsubRef.current = unsub
+    try {
+      subscribeLoans(fc)
+    } catch (err) {
+      reportError('Subscribe failed', err)
+    }
   }
 
-  function handleDisconnect() {
+  function handleRetry() {
+    const cfg = loadFirebaseConfig()
+    const fc  = familyCode || lsFamily()
+    if (cfg && fc) {
+      connectFirestore(cfg, fc)
+    } else {
+      setShowSyncSetup(true)
+    }
+  }
+
+  async function handleDisconnect() {
     if (unsubRef.current) { unsubRef.current(); unsubRef.current = null }
+    await teardownFirebase()
     clearFirebaseConfig()
     localStorage.removeItem(LS_FAMILY)
     setFamilyCode('')
+    setSyncError(null)
     setSyncStatus('offline')
     setLoans(lsLoad())
   }
 
-  // ── CRUD — write to Firestore if connected, else localStorage ──────────────
+  // ── CRUD — optimistic local update first, then Firestore write ─────────────
   const saveLoan = useCallback(async (loan) => {
+    fallbackSave(loan) // optimistic
     if (syncStatus !== 'offline' && familyCode) {
       try {
         await setDoc(doc(loansCol(familyCode), loan.id), loan)
-        // onSnapshot will update state
-      } catch { fallbackSave(loan) }
-    } else {
-      fallbackSave(loan)
+      } catch (err) {
+        reportError('Save failed', err)
+      }
     }
   }, [syncStatus, familyCode]) // eslint-disable-line
 
@@ -197,14 +245,15 @@ export default function App() {
   }
 
   const deleteLoan = useCallback(async (id) => {
+    fallbackDelete(id) // optimistic
+    setDeleteConfirm(null)
     if (syncStatus !== 'offline' && familyCode) {
       try {
         await deleteDoc(doc(loansCol(familyCode), id))
-      } catch { fallbackDelete(id) }
-    } else {
-      fallbackDelete(id)
+      } catch (err) {
+        reportError('Delete failed', err)
+      }
     }
-    setDeleteConfirm(null)
   }, [syncStatus, familyCode]) // eslint-disable-line
 
   function fallbackDelete(id) {
@@ -214,8 +263,7 @@ export default function App() {
   const toggleLoan = useCallback(async (id) => {
     const loan = loans.find((l) => l.id === id)
     if (!loan) return
-    const updated = { ...loan, isActive: !loan.isActive }
-    await saveLoan(updated)
+    await saveLoan({ ...loan, isActive: !loan.isActive })
   }, [loans, saveLoan])
 
   // ── Offline-mode: keep localStorage in sync ─────────────────────────────────
@@ -239,7 +287,9 @@ export default function App() {
         <SyncBadge
           status={syncStatus}
           familyCode={familyCode}
+          syncError={syncError}
           onSetup={() => setShowSyncSetup(true)}
+          onRetry={handleRetry}
           onDisconnect={handleDisconnect}
         />
       </div>

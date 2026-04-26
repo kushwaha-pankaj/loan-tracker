@@ -111,11 +111,9 @@ function PrincipalInterestBar({ loans }) {
   const active = loans.filter((l) => l.isActive)
   const data = active.map((loan) => {
     const { interest } = calculateLoanMetrics(loan)
+    const name = loan.lenderName || '—'
     return {
-      name:
-        loan.lenderName.length > 12
-          ? loan.lenderName.slice(0, 11) + '…'
-          : loan.lenderName,
+      name: name.length > 12 ? name.slice(0, 11) + '…' : name,
       principal: parseFloat(loan.principal) || 0,
       interest,
     }
@@ -150,21 +148,20 @@ function InterestProjection({ loans }) {
   const projections = active.map((loan) => projectMonthly(loan, months))
   const labels = projections[0].map((p) => p.month)
 
+  const shortName = (loan) => {
+    const n = loan.lenderName || '—'
+    return n.length > 10 ? n.slice(0, 9) + '…' : n
+  }
+
   const data = labels.map((label, i) => {
     const row = { month: label }
     active.forEach((loan, j) => {
-      const name =
-        loan.lenderName.length > 10
-          ? loan.lenderName.slice(0, 9) + '…'
-          : loan.lenderName
-      row[name] = projections[j][i].outstanding
+      row[shortName(loan)] = projections[j][i].outstanding
     })
     return row
   })
 
-  const keys = active.map((loan) =>
-    loan.lenderName.length > 10 ? loan.lenderName.slice(0, 9) + '…' : loan.lenderName
-  )
+  const keys = active.map(shortName)
 
   return (
     <div className="h-48 sm:h-64">

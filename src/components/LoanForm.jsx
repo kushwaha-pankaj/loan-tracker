@@ -129,6 +129,17 @@ function DatePicker({ value, onChange, error }) {
   const [bsMonth, setBsMonth] = useState(defaultBs?.month || 1)
   const [bsDay, setBsDay] = useState(defaultBs?.day || 1)
 
+  // Re-sync BS dropdowns whenever the external value changes (e.g. editing a
+  // different loan or switching from AD to BS mode).
+  useEffect(() => {
+    const bs = value ? isoToBs(value) : null
+    if (bs) {
+      setBsYear(bs.year)
+      setBsMonth(bs.month)
+      setBsDay(bs.day)
+    }
+  }, [value])
+
   function emitBs(y, m, d) {
     const maxDay = bsMonthDays(y, m)
     const safeDay = Math.min(d, maxDay)
@@ -342,9 +353,11 @@ export default function LoanForm({ loan, onSave, onClose }) {
     setForm((prev) => ({
       ...prev,
       lenderType: val,
-      interestType: info?.interestType || 'simple',
-      rateType: info?.rateType || 'monthly',
-      interestRate: isEdit ? prev.interestRate : (info?.defaultRate || ''),
+      // Preserve user's existing interest model when editing — only seed
+      // defaults on a fresh "Add Loan" flow.
+      interestType: isEdit ? prev.interestType : (info?.interestType || 'simple'),
+      rateType:     isEdit ? prev.rateType     : (info?.rateType     || 'monthly'),
+      interestRate: isEdit ? prev.interestRate : (info?.defaultRate  || ''),
     }))
     setErrors((prev) => ({ ...prev, interestRate: '' }))
   }
