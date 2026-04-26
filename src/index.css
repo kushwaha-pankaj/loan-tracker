@@ -3,8 +3,60 @@
 @tailwind utilities;
 
 @layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    scroll-behavior: smooth;
+  }
+  html,
+  body {
+    @apply overflow-x-hidden;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior-y: none;
+  }
   body {
     @apply bg-slate-50 text-slate-800 font-sans;
+    min-height: 100dvh;
+    touch-action: manipulation;
+  }
+  #root {
+    min-height: 100dvh;
+  }
+  /* iOS prevents auto-zoom on focus only when input font-size >= 16px */
+  input,
+  select,
+  textarea,
+  button {
+    font-size: 16px;
+  }
+  /* Visible focus ring everywhere (a11y P1) */
+  :focus-visible {
+    @apply outline-none ring-2 ring-nepal-red/60 ring-offset-2 ring-offset-white;
+  }
+  button:focus:not(:focus-visible),
+  a:focus:not(:focus-visible) {
+    outline: none;
+  }
+  /* Native select/option polish */
+  select {
+    -webkit-appearance: none;
+    appearance: none;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 0.75rem center;
+    background-size: 12px;
+    padding-right: 2rem;
+  }
+  /* Respect reduced motion (a11y P1, motion P7) */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 }
 
@@ -14,19 +66,28 @@
   }
 
   .btn-primary {
-    @apply bg-nepal-red hover:bg-red-700 text-white font-semibold px-4 py-2 rounded-xl transition-all duration-200 flex items-center gap-2 shadow-sm hover:shadow-md active:scale-95;
+    @apply bg-nepal-red hover:bg-red-700 text-white font-semibold px-4 py-2.5 rounded-xl
+           transition-[transform,colors,box-shadow] duration-220 ease-ios
+           flex items-center justify-center gap-2 shadow-sm hover:shadow-md active:scale-[0.97]
+           min-h-[44px] disabled:opacity-60 disabled:cursor-not-allowed disabled:active:scale-100;
   }
 
   .btn-secondary {
-    @apply bg-white hover:bg-slate-50 text-slate-700 font-medium px-4 py-2 rounded-xl border border-slate-200 transition-all duration-200 flex items-center gap-2 active:scale-95;
+    @apply bg-white hover:bg-slate-50 text-slate-700 font-medium px-4 py-2.5 rounded-xl
+           border border-slate-200
+           transition-[transform,colors] duration-220 ease-ios
+           flex items-center justify-center gap-2 active:scale-[0.97] min-h-[44px];
   }
 
   .btn-danger {
-    @apply bg-red-50 hover:bg-red-100 text-red-600 font-medium px-3 py-1.5 rounded-lg transition-all duration-200 active:scale-95;
+    @apply bg-red-50 hover:bg-red-100 text-red-600 font-medium px-3 py-2 rounded-lg
+           transition-[transform,colors] duration-220 ease-ios active:scale-[0.97];
   }
 
   .input-field {
-    @apply w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-nepal-red/30 focus:border-nepal-red transition-all duration-200;
+    @apply w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-800 placeholder-slate-400
+           focus:outline-none focus:ring-2 focus:ring-nepal-red/30 focus:border-nepal-red
+           transition-colors duration-180 min-h-[44px];
   }
 
   .label {
@@ -36,73 +97,92 @@
   .badge-person {
     @apply bg-purple-100 text-purple-700 text-xs font-semibold px-2 py-0.5 rounded-full;
   }
-
   .badge-cooperative {
     @apply bg-green-100 text-green-700 text-xs font-semibold px-2 py-0.5 rounded-full;
   }
-
   .badge-bank {
     @apply bg-blue-100 text-blue-700 text-xs font-semibold px-2 py-0.5 rounded-full;
   }
-
   .badge-microfinance {
     @apply bg-orange-100 text-orange-700 text-xs font-semibold px-2 py-0.5 rounded-full;
   }
-
   .badge-active {
     @apply bg-green-100 text-green-700 text-xs font-semibold px-2 py-0.5 rounded-full;
   }
-
   .badge-paid {
     @apply bg-slate-100 text-slate-500 text-xs font-semibold px-2 py-0.5 rounded-full;
   }
+
+  /* Touch-target helper for icon-only buttons */
+  .icon-btn {
+    @apply inline-flex items-center justify-center min-w-[40px] min-h-[40px] rounded-xl
+           transition-[transform,colors] duration-180 ease-ios active:scale-[0.92];
+  }
+
+  /* Sheet bottom-anchored panel base */
+  .sheet-panel {
+    @apply bg-white w-full sm:rounded-2xl rounded-t-3xl shadow-sheet
+           flex flex-col overflow-hidden;
+  }
 }
 
-/* Smooth scrolling */
-html {
-  scroll-behavior: smooth;
+@layer utilities {
+  .no-select {
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+  .scroll-snap-x {
+    scroll-snap-type: x mandatory;
+  }
+  .snap-start {
+    scroll-snap-align: start;
+  }
+  .currency {
+    font-variant-numeric: tabular-nums;
+  }
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .pt-safe {
+    padding-top: env(safe-area-inset-top);
+  }
 }
 
-/* Custom scrollbar */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+/* Hide scrollbar on touch devices for cleaner native feel */
+@media (pointer: coarse) {
+  ::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    background: transparent;
+  }
+  * {
+    scrollbar-width: none;
+  }
 }
-::-webkit-scrollbar-track {
-  background: #f1f5f9;
-}
-::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 3px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
-}
-
-/* Modal animation */
-.modal-overlay {
-  animation: fadeIn 0.15s ease-out;
-}
-.modal-content {
-  animation: slideUp 0.2s ease-out;
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@keyframes slideUp {
-  from { opacity: 0; transform: translateY(20px) scale(0.98); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
+@media (pointer: fine) {
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 4px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+  }
 }
 
-/* Table row hover */
+/* Loan row hover (desktop) */
 .loan-row:hover {
   @apply bg-slate-50;
-}
-
-/* Number formatting */
-.currency {
-  font-variant-numeric: tabular-nums;
 }
